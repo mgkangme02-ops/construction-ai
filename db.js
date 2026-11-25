@@ -1,0 +1,7 @@
+/* IndexedDB: data is scoped to the current browser and origin. */
+window.FieldDB=(()=>{
+ let connection;
+ function open(){if(!connection){connection=new Promise((resolve,reject)=>{if(!window.indexedDB){reject(new Error('IndexedDB를 사용할 수 없습니다.'));return;}const req=indexedDB.open('construction-field-records',1);req.onupgradeneeded=()=>{const db=req.result;db.createObjectStore('sites',{keyPath:'id'});const records=db.createObjectStore('records',{keyPath:'id'});records.createIndex('siteId','siteId');};req.onsuccess=()=>{const db=req.result;db.onversionchange=()=>{db.close();connection=null;};resolve(db);};req.onerror=()=>reject(req.error);req.onblocked=()=>reject(new Error('다른 탭을 닫고 다시 실행하세요.'));}).catch(e=>{connection=null;throw e;});}return connection;}
+ async function run(store,mode,fn){const db=await open();return new Promise((resolve,reject)=>{const tx=db.transaction(store,mode);let request;try{request=fn(tx.objectStore(store));}catch(e){tx.abort();reject(e);return;}tx.oncomplete=()=>resolve(request.result);tx.onerror=()=>reject(tx.error||request.error);tx.onabort=()=>reject(tx.error||new Error('저장 작업이 중단되었습니다.'));});}
+ return {open,sites:()=>run('sites','readonly',s=>s.getAll()),saveSite:x=>run('sites','readwrite',s=>s.put(x)),records:siteId=>run('records','readonly',s=>s.index('siteId').getAll(siteId)),getRecord:id=>run('records','readonly',s=>s.get(id)),saveRecord:x=>run('records','readwrite',s=>s.put(x)),deleteRecord:id=>run('records','readwrite',s=>s.delete(id))};
+})();
